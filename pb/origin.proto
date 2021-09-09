@@ -1,0 +1,198 @@
+syntax = "proto3";
+package jsonhttp;
+option go_package = "github.com/berquerant/jsonhttp/pb";
+
+import "google/protobuf/struct.proto";
+
+message Value {
+  // Value template based on request headers.
+  message Header {
+    // Header name.
+    string key = 1;
+  }
+  // Value template based on request body.
+  message Body {
+    // Like js property accessor.
+    //
+    // # Example
+    //
+    // When body is below:
+    //
+    //     {
+    //       "top": {
+    //         "internal": "depth"
+    //       }
+    //     }
+    //
+    // and keys is ["top", "internal"], then get "depth".
+    repeated string keys = 1;
+  }
+  // Value template based on request url.
+  message Url {
+    // Part of url.
+    enum Part {
+      SCHEME = 0;
+      AUTHORITY = 1;
+      HOST = 2;
+      PORT = 3;
+      PATH = 4;
+      QUERY = 5;
+      FRAGMENT = 6;
+      ALL = 7;
+    }
+    // Path of url.
+    message Path {
+      // Index of the part of path separated by /.
+      //
+      // # Examples
+      //
+      // For /a/b,
+      // index 0 means a, index 1 means b, other indexes are out of range.
+      int32 index = 1;
+    }
+    // Query of url.
+    message Query {
+      // Query key.
+      string key = 1;
+    }
+    oneof value {
+      Part part = 101;
+      Query query = 102;
+      Path path = 103;
+    }
+  }
+  // Value template utilities.
+  message Util {
+    // Current time.
+    message Now {
+      enum Type {
+        TIMESTAMP = 0;
+      }
+      Type type = 101;
+    }
+    // Random data.
+    message Random {
+      // Random integer.
+      message Dice {
+        int32 min = 1;
+        int32 max = 2;
+      }
+      enum Type {
+        UUID = 0;
+        // standard uniform distribution
+        STDU = 1;
+      }
+      oneof value {
+        Type type = 101;
+        Dice dice = 102;
+      }
+    }
+    oneof value {
+      Now now = 101;
+      Random random = 102;
+    }
+  }
+  // Add up values.
+  message Add {
+    enum Type {
+      // As string.
+      STRING = 0;
+      // As number.
+      NUMBER = 1;
+    }
+    Type type = 101;
+    repeated Value values = 102;
+  }
+  // Typecast.
+  message Cast {
+    enum Type {
+      BOOL = 0;
+      NUMBER = 1;
+      STRING = 2;
+    }
+    Type type = 101;
+    Value value = 102;
+  }
+  message List {
+    repeated Value values = 1;
+  }
+  message Map {
+    map<string, Value> values = 1;
+  }
+  oneof value {
+    google.protobuf.NullValue null = 100;
+    bool b = 101;
+    double n = 102;
+    string s = 103;
+    List l = 104;
+    Map m = 105;
+    Header header = 106;
+    Body body = 107;
+    Url url = 108;
+    Util util = 109;
+    Add add = 110;
+    Cast cast = 111;
+  }
+}
+
+// Request/Response data to Request/Response data mapper.
+message Template {
+  enum Type {
+    // Into body.
+    BODY = 0;
+    // Into headers.
+    HEADER = 1;
+  }
+  Type type = 101;
+  Value value = 102;
+}
+
+enum MethodType {
+  GET = 0;
+  POST = 1;
+}
+
+// What the Handler does.
+message Action {
+  enum TemplateType {
+    // Exclude original request/response.
+    SELECT = 0;
+    // Append template values to original request/response.
+    APPEND = 1;
+  }
+  // Wraps request.
+  message Gateway {
+    Value path = 1;
+    MethodType methodType = 2;
+    // Request timeout(millisecond).
+    Value timeout = 3;
+    repeated Template templates = 4;
+    repeated Template responseTemplates = 5;
+    TemplateType templateType = 6;
+    TemplateType responseTemplateType = 7;
+  }
+  // Return response.
+  message Return {
+    repeated Template templates = 1;
+    // Response status.
+    int32 status = 2;
+    // Delay response(millisecond).
+    Value delay = 3;
+    TemplateType templateType = 4;
+  }
+  oneof action {
+    Return return = 101;
+    Gateway gateway = 102;
+  }
+}
+
+message Handler {
+  string path = 1;
+  MethodType methodType = 2;
+  Action action = 3;
+}
+
+message Server {
+  int32 port = 1;
+  repeated Handler handlers = 2;
+}
